@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  farkle-app
+
+  SAM for farkle-app
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+  StartTurn:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: farkle/
+      Handler: app.start_handler
+      Runtime: python3.8
+      Policies: AmazonDynamoDBFullAccess
+      Events:
+        Roll:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /start/{session}/{bet}/{mode}
+            Method: get
+
+
+  RollFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: farkle/
+      Handler: app.roll_handler
+      Runtime: python3.8
+      Policies: AmazonDynamoDBFullAccess
+      Events:
+        Roll:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /roll/{session}
+            Method: post
+
+  StopFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: farkle/
+      Handler: app.stop_handler
+      Runtime: python3.8
+      Policies: AmazonDynamoDBFullAccess
+      Events:
+        Roll:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /stop/{session}
+            Method: post
+
+  UnfarkleFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: farkle/
+      Handler: app.unfarkle_handler
+      Runtime: python3.8
+      Policies: AmazonDynamoDBFullAccess
+      Events:
+        Roll:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /unfarkle/{session}
+            Method: get
+
+
+
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  FarkleApi:
+    Description: "base url for application"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  FarkleFunction:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt StartTurn.Arn
+  FarkleIamRole:
+    Description: "Implicit IAM Role created for function"
+    Value: !GetAtt StartTurnRole.Arn

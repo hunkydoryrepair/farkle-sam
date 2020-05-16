@@ -1,0 +1,9 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "farkle-app"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1uu9df2nb8jd5"
+s3_prefix = "farkle-app"
+region = "us-west-1"
+capabilities = "CAPABILITY_IAM"
