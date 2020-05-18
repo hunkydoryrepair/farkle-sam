@@ -246,8 +246,7 @@ def start_handler(data):
         data['session'] = ''
     if 'player_id' not in data:
         data['player_id'] = ''
-    if data['session'] == '' and data['player_id'] == '':
-        return format_response({"message": "player not specified"}, None, 502)
+
     try:
         db_conn = get_dynamo()
 
@@ -259,7 +258,11 @@ def start_handler(data):
                 return format_response(game_state, None, 502)
         else:
             game_state = gamestate.GameState()
-            player_1 = load_player(db_conn, data['player_id'])
+            # create new player if play_id not set
+            if data['player_id'] == '':
+                player_1 = player.Player()
+            else:
+                player_1 = load_player(db_conn, data['player_id'])
             game_state.gameMode = data['mode']
             game_state.update_from_player(player_1)
 

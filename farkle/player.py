@@ -7,10 +7,11 @@ class Player:
     """
     def __init__(self):
         self.farkle = {
-            'num_farkle_boosts': 20,
+            'num_farkle_boosts': 0,
             'amount_bet': 0,
             'amount_won': 0,
-            'games_played': 0
+            'games_played': 0,
+            'last_boost': ''
         }
         self.num_gems = 20
         self.num_credits = 100000

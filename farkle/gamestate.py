@@ -206,15 +206,27 @@ class GameState:
              @hold - array of indices of the dice held. Indices into the list of dice in TurnState
              @extra - if True, roll all 6 dice and use the extra roll powerup.
         """
-        if self.turn.rolled and self.turn.farkle and not self.turn.unfarkled:
+        if self.gameOver:
+            self.message = "game not started"
+        elif self.turn.rolled and self.turn.farkle and not self.turn.unfarkled:
             self.message = "cannot roll after farkle"
             return False
         elif self.turnBet == 0:
             self.message = "cannot roll without a bet"
             return False
-        elif not self.end_roll(hold):
+
+        # check if we need to start (save a call). This allows us to go from
+        # end_turn to roll in a LONG game, without a START in between.
+        if self.turn.rolled == false and self.turn.freshRolls > 0:
+            # we must be in a long game since game not over and turnBet is set but we haven't
+            if not self.start_turn(self.turnBet)
+                return False
+        
+        if not self.end_roll(hold):
             return False
-        elif self.gameMode == "TUTORIAL":  # put after endRoll to set up roll appropriately.
+        
+        
+        if self.gameMode == "TUTORIAL":  # put after endRoll to set up roll appropriately.
             #
             # check the hold is correct for our turn number
             #
@@ -232,7 +244,7 @@ class GameState:
             self.turn.extra_roll()
         else:
             screws = 1.0
-            if self.numTurns > 10 and self.amountBet > 5000:
+            if self.numTurns > 10 and self.amountEarned > 5000:
                 # calculate average win
                 ratio = (self.amountBet / self.amountEarned)*0.9  # target 90%
                 if ratio > 2.5:
@@ -240,6 +252,8 @@ class GameState:
                 elif ratio < 0.5:
                     ratio = 0.5
                 screws = ratio
+            elif self.amountEarned == 0:
+                screws = 3.0
             self.message = "rolling %s dice" % self.turn.diceRolled
             self.turn.roll(screws)
 
@@ -331,7 +345,7 @@ class GameState:
             # don't actually change the game balance until the game ends
             self.player_adjustments['num_credits'] += self.wonGame
             self.amountEarned += earned_this_game
-            self.player_adjustments['amount_won'] = earned_this_game
+            self.player_adjustments['farkle.amount_won'] = earned_this_game
             self.turnBet = 0
 
         return True
