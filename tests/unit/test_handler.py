@@ -10,7 +10,7 @@ def apigw_event():
     """ Generates API GW Event"""
 
     return {
-        "body": '{ "test": "body"}',
+        "body": '{ "player_id": "1"}',
         "resource": "/{proxy+}",
         "requestContext": {
             "resourceId": "123456",

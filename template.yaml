@@ -8,67 +8,22 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 10
 
 Resources:
-  StartTurn:
+  FarkleFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
       CodeUri: farkle/
-      Handler: app.start_handler
+      Handler: app.shared_handler
       Runtime: python3.8
       Policies: AmazonDynamoDBFullAccess
       Events:
         Roll:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            Path: /start/{session}/{bet}/{mode}
-            Method: get
-
-
-  RollFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Properties:
-      CodeUri: farkle/
-      Handler: app.roll_handler
-      Runtime: python3.8
-      Policies: AmazonDynamoDBFullAccess
-      Events:
-        Roll:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /roll/{session}
+            Path: /farkle/{command}
             Method: post
-
-  StopFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Properties:
-      CodeUri: farkle/
-      Handler: app.stop_handler
-      Runtime: python3.8
-      Policies: AmazonDynamoDBFullAccess
-      Events:
-        Roll:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /stop/{session}
-            Method: post
-
-  UnfarkleFunction:
-    Type: AWS::Serverless::Function 
-    Properties:
-      CodeUri: farkle/
-      Handler: app.unfarkle_handler
-      Runtime: python3.8
-      Policies: AmazonDynamoDBFullAccess
-      Events:
-        Roll:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /unfarkle/{session}
-            Method: get
-
-
 
 
 Outputs:
@@ -77,10 +32,10 @@ Outputs:
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
   FarkleApi:
     Description: "base url for application"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/farkle"
   FarkleFunction:
     Description: "Lambda Function ARN"
-    Value: !GetAtt StartTurn.Arn
+    Value: !GetAtt FarkleFunction.Arn
   FarkleIamRole:
     Description: "Implicit IAM Role created for function"
-    Value: !GetAtt StartTurnRole.Arn
+    Value: !GetAtt FarkleFunctionRole.Arn

@@ -160,7 +160,7 @@ class ScoreDice:
             self.total_points += score.points
             #
             # track which dice used in the score.
-            for idx in range(len(score.dice)):
+            for idx in score.dice:
                 self.dice_used[idx] = True
 
 

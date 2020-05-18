@@ -3,7 +3,9 @@
 import random
 import math
 import uuid
+import datetime
 import scoredice
+import player
 
 class GameState:
     """Track the game state for farkle game
@@ -12,17 +14,6 @@ class GameState:
 
     def __init__(self):
         self.uniqID = str(uuid.uuid4())
-        self.amountBet = 0
-        # the number of coins won NOT COUNTING POWERUPs
-        # So, Extra roll is not counted, point double is not counted
-        # and a farkle sets the turn to be 0, so anything after undoing
-        # a farkle is not counted.
-        self.amountEarned = 0
-        # number of turns played ever
-        self.numTurns = 0
-
-        # number of coins in the jackpot
-        self.jackpot = 0
 
         # our current roll.
         self.turn = TurnState()
@@ -30,10 +21,6 @@ class GameState:
         # our completed turns for this game
         self.turns = []
 
-        # player coin balance
-        self.balance = 0
-        # the number of boost dice available
-        self.numBoosts = 0
         # how much wagered this game.
         self.turnBet = 0
 
@@ -43,8 +30,6 @@ class GameState:
         # what step are we in on the tutorial
         self.tutorialStep = 0
 
-        # num gems
-        self.numGems = 0
 
         # coins won on last turn
         self.won = 0
@@ -67,14 +52,87 @@ class GameState:
 
         # the level we want to attain (next)
         self._goal = 0
-        self.boostBonus = False
+        # a message to return
         self.message = None
+        # player id session is for
+        self.player_id = None
+
+
+        # GAME PROPERTIES
+        # number of coins in the jackpot
+        self.jackpot = 0
+        self.game_adjust = {}
+
+        # PLAYER PROPERTIES
+        # player coin balance
+        self.balance = 0
+        # the number of boost dice available
+        self.numBoosts = 0
+        # num gems
+        self.numGems = 0
+        # total amount bet
+        self.amountBet = 0
+        # the number of coins won NOT COUNTING POWERUPs
+        # So, Extra roll is not counted, point double is not counted
+        # and a farkle sets the turn to be 0, so anything after undoing
+        # a farkle is not counted.
+        self.amountEarned = 0
+        # number of turns played ever
+        self.numTurns = 0
+        self.last_bonus = ''
+        self.player_adjustments = {}
 
     def init_dict(self, dct):
         """Initialize this object from a dictionary. Used when deserializing
         """
         for key in dct.keys():
             setattr(self, key, dct[key])
+
+    def get_save_dict(self):
+        """gather all the properties to save to the db
+        """
+        return {
+            'uniqID': self.uniqID,
+            'turn': self.turn.get_save_dict(),
+            'turns': [t.get_save_dict() for t in self.turns],
+            'turnBet': self.turnBet,
+            'gameMode': self.gameMode,
+            'tutorialStep': self.tutorialStep,
+            'won': self.won,
+            'wonGame': self.wonGame,
+            'boostBonus': self.boostBonus,
+            'gameOver': self.gameOver,
+            'hasExtra': self.hasExtra,
+            'hasDoubled': self.hasDoubled,
+            'hasUndone': self.hasUndone,
+            '_goal': self._goal,
+            'player_id': self.player_id
+        }
+
+    def update_from_player(self, player_1: player.Player):
+        """get info from player object and update our state
+        """
+        self.player_id = player_1.player_id
+        self.balance = player_1.num_credits
+        self.numGems = player_1.num_gems
+        if 'num_farkle_boosts' in player_1.farkle:
+            self.numBoosts = player_1.farkle['num_farkle_boosts']
+        if 'amount_won' in player_1.farkle:
+            self.amountEarned = player_1.farkle['amount_won']
+        if 'amount_bet' in player_1.farkle:
+            self.amountBet = player_1.farkle['amount_bet']
+        if 'games_played' in player_1.farkle:
+            self.numTurns = player_1.farkle['games_played']
+        if 'last_bonus' in player_1.farkle:
+            self.last_bonus = player_1.farkle['last_bonus']
+
+    def update_from_game(self, game):
+        """get info from game object and update our state. Mainly the jackpot
+        """
+        if 'jackpot' in game:
+            self.jackpot = game['jackpot']
+
+
 
     # begin a new turn
     def start_turn(self, bet):
@@ -88,7 +146,25 @@ class GameState:
 
         if self.gameOver:
             self.numTurns = self.numTurns + 1
+            self.player_adjustments['farkle.games_played'] = 1
             self.turnBet = bet
+
+            #
+            # check for boosts
+            #
+            if self.last_bonus == '':
+                # get initial boosts
+                self.player_adjustments['farkle.last_bonus'] = str(datetime.datetime.now())
+                self.player_adjustments['farkle.num_farkle_boosts'] = 20
+                self.numBoosts += 20
+            elif (datetime.datetime.now() - \
+                    datetime.datetime.strptime(self.last_bonus, \
+                        "%Y-%m-%d %H:%M:%S.%f")).total_seconds() > 24*60*60:
+                # get free boosts every 24 hours
+                self.player_adjustments['farkle.last_bonus'] = str(datetime.datetime.now())
+                self.player_adjustments['farkle.num_farkle_boosts'] = 3
+                self.numBoosts += 3
+                self.boostBonus = True
 
             if self.gameMode == "LONG":
                 # start at initial level
@@ -96,10 +172,14 @@ class GameState:
             if self.gameMode != "TUTORIAL":
                 self.amountBet += bet
                 self.balance -= bet
+                self.player_adjustments['farkle.amount_bet'] = bet
+                self.player_adjustments['num_credits'] = -bet
                 self.jackpot += math.floor(bet/10)
+                self.game_adjust['jackpot'] = math.floor(bet/10)
                 if self.balance < 0:
                     # replenish
                     self.balance += bet*5
+                    self.player_adjustments['num_credits'] += bet*5
             else:
                 self.tutorialStep = 1
             self.turns.clear()
@@ -110,8 +190,10 @@ class GameState:
             self.hasExtra = False
             self.hasUndone = False
             self.gameOver = False
+            self.message = "new game"
         else:
             self.turn.reset_turn()
+            self.message = "next turn in game"
 
         return True
 
@@ -146,6 +228,7 @@ class GameState:
         elif extra and not self.hasExtra and self.numBoosts > 0 and self.turn.diceRolled < 6:
             self.message = "extra roll"
             self.numBoosts -= 1
+            self.player_adjustments['farkle.num_farkle_boosts'] = -1
             self.turn.extra_roll()
         else:
             screws = 1.0
@@ -208,15 +291,21 @@ class GameState:
         self.turns.append(self.turn)
 
         if double_it and self.numBoosts > 0 and not self.hasDoubled:
+            self.player_adjustments['farkle.num_farkle_boosts'] = -1
             self.numBoosts -= 1
             self.turn.double_it()
             self.hasDoubled = True
 
         if self.turn.points >= 10000:
             # get the jackpot!!!
+            self.game_adjust['jackpot'] = -self.jackpot + 10000
+            self.player_adjustments['num_credits'] = self.jackpot
             self.balance += self.jackpot
             self.jackpot = 1000
+        else:
+            self.player_adjustments['num_credits'] = 0
 
+        earned_this_game = 0
         if self.gameMode == "LONG":
             total = self.gameScore()
             self.won = 0
@@ -228,10 +317,10 @@ class GameState:
 
             self.gameOver = len(self.turns) == 10
             if self.gameOver:
-                self.amountEarned += math.floor(self._goal * self.turnBet)
+                earned_this_game = math.floor(self._goal * self.turnBet)
         else:
             if self.gameMode != "TUTORIAL":
-                self.amountEarned += math.floor(self.turn.unboostedPoints * self.turnBet/500)
+                earned_this_game = math.floor(self.turn.unboostedPoints * self.turnBet/500)
 
             self.wonGame = self.won = math.floor(self.turn.points * self.turnBet/500)
             self.balance += self.won
@@ -239,6 +328,10 @@ class GameState:
 
         # not eligible to roll until we bet
         if self.gameOver:
+            # don't actually change the game balance until the game ends
+            self.player_adjustments['num_credits'] += self.wonGame
+            self.amountEarned += earned_this_game
+            self.player_adjustments['amount_won'] = earned_this_game
             self.turnBet = 0
 
         return True
@@ -251,6 +344,7 @@ class GameState:
             self.turn.unroll()
         elif self.turn.farkle and self.numBoosts > 0 and not self.hasUndone:
             self.numBoosts -= 1
+            self.player_adjustments['farkle.num_farkle_boosts'] = -1
             self.turn.unroll()
             self.hasUndone = True
         else:
@@ -265,16 +359,22 @@ class GameState:
         """
         if self.numGems < gems:
             return False
+        self.player_adjustments['num_gems'] = -gems
         self.numGems -= gems
+        num_to_add = 0
         while gems >= 10:
-            self.numBoosts += 50
+            num_to_add += 50
             gems -= 10
         while gems >= 5:
-            self.numBoosts += 20
+            num_to_add += 20
             gems -= 5
         while gems >= 1:
-            self.numBoosts += 3
+            num_to_add += 3
             gems -= 1
+        self.player_adjustments['farkle.num_farkle_boosts'] = num_to_add
+        self.numBoosts += num_to_add
+        return True
+
 
 
     # internal function called when rolling or ending turn.
@@ -301,6 +401,7 @@ class GameState:
                 score = scoredice.ScoreDice(held)
                 # if any dice not used, return False
                 if False in score.dice_used:
+                    print(score.__dict__)
                     self.message = "invalid dice held"
                     return False
 
@@ -352,6 +453,11 @@ class TurnState:
         """
         for key in dct.keys():
             setattr(self, key, dct[key])
+
+    def get_save_dict(self):
+        """get the dictionary to save for the state of this turn
+        """
+        return self.__dict__
 
     def reset_game(self):
         """reset for a new game, which may have multiple turns
