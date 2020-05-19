@@ -217,15 +217,14 @@ class GameState:
 
         # check if we need to start (save a call). This allows us to go from
         # end_turn to roll in a LONG game, without a START in between.
-        if self.turn.rolled == false and self.turn.freshRolls > 0:
+        if not self.turn.rolled and self.turn.freshRolls > 0:
             # we must be in a long game since game not over and turnBet is set but we haven't
-            if not self.start_turn(self.turnBet)
+            if not self.start_turn(self.turnBet):
                 return False
-        
+
         if not self.end_roll(hold):
             return False
-        
-        
+
         if self.gameMode == "TUTORIAL":  # put after endRoll to set up roll appropriately.
             #
             # check the hold is correct for our turn number

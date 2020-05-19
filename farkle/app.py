@@ -3,7 +3,9 @@
 """
 import json
 import decimal
+import hashlib
 import boto3
+from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 import gamestate
 import player
@@ -97,7 +99,6 @@ def update_table(db_conn, table_name, key_dict, update_dict):
 def update_gamestate(db_conn, game_state):
     """save the game state to the dynamo db
     """
-    print(game_state)
     table = db_conn.Table('sessions')
     save_state = game_state.get_save_dict()
     table.put_item(Item=save_state)
@@ -130,6 +131,50 @@ def load_player(db_conn, player_id):
     player_1 = player.Player()
     player_1.init_dict(item)
     return player_1
+
+
+def login_player(db_conn, username, password, displayname):
+    """handle login when we don't have the player_id
+    """
+    table = db_conn.Table('players')
+    response = table.scan(
+        FilterExpression=Key('username').eq(username)
+    )
+    items = response['Items']
+    if len(items) == 0:
+        #create a new player!
+        player_1 = player.Player()
+        player_1.password = hashlib.pbkdf2_hmac('sha256', \
+                                    password.encode('utf-8'), \
+                                    player_1.player_id.encode('utf-8'), \
+                                    1111)
+        player_1.username = username
+        player_1.displayname = displayname
+        item = player_1.get_save_dict()
+        table.put_item(Item=item)
+        return player_1
+
+    # we SHOULD only have one match. But our db doesn't guarnatee that
+    for item in items:
+        # use the player_id as the salt
+        test_password = \
+            hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), \
+                    item['player_id'].encode('utf-8'), 1111)
+        if 'password' in item and test_password == item['password']:
+            # set login key
+            player_1 = player.Player()
+            item['login_key'] = player_1.login_key
+            player_1.init_dict(item)
+            table.update_item(Key={'player_id': item['player_id']}, \
+                              UpdateExpression="set login_key=:key",
+                              ExpressionAttributeValues={':key': player_1.login_key},
+                              ReturnValues="UPDATED_NEW")
+            return player_1
+
+    #no password match
+    return None
+
+
 
 def load_gamestate(db_conn, session):
     """get the game state from the db
@@ -271,7 +316,23 @@ def start_handler(data):
 
         return format_response(game_state)
     except Exception as exception:
-        return format_response({'message': str(exception)})
+        return format_response({'message': str(exception)}, None, 502)
+
+def login_handler(data):
+    """Get the player data. May require a password (but not yet)
+    """
+    db_conn = get_dynamo()
+    player_1: player.Player = None
+    if 'player_id' in data and data['player_id'] != '':
+        player_1 = load_player(db_conn, data['player_id'])
+    elif 'username' in data and data['username'] != '':
+        player_1 = login_player(db_conn, data['username'], data['password'], data['displayname'])
+
+    if player_1 is None:
+        return format_response({'message': 'invalid login information'}, None, 502)
+
+    return format_response(player_1.get_client_dict())
+
 
 
 def shared_handler(event, context):
@@ -296,5 +357,7 @@ def shared_handler(event, context):
         return unfarkle_handler(data)
     elif command == 'buyboosts':
         return buyboost_handler(data)
+    elif command == 'login':
+        return login_handler(data)
     else:
         return format_response({'message': 'unknown command'}, None, 502)
