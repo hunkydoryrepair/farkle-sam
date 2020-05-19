@@ -53,7 +53,8 @@ def format_response(obj, headers=None, code=200):
     """
     if headers is None:
         headers = {
-            "Access-Control-Allow-Origin": "*"
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
         }
     return {
         "statusCode": code,
@@ -116,26 +117,35 @@ def load_game(db_conn):
             'gamename': 'farkle'
         }
     )
+    if 'Item' not in response:
+        return {'jackpot': 0}
+
     return response['Item']
 
 def load_player(db_conn, player_id):
     """load player data from db
     """
-    table = db_conn.Table('players')
-    response = table.get_item(
-        Key={
-            'player_id': player_id
-        }
-    )
-    item = response['Item']
-    player_1 = player.Player()
-    player_1.init_dict(item)
-    return player_1
+    try:
+        table = db_conn.Table('players')
+        response = table.get_item(
+            Key={
+                'player_id': player_id
+            }
+        )
+        if 'Item' not in response:
+            return None
+        item = response['Item']
+        player_1 = player.Player()
+        player_1.init_dict(item)
+        return player_1
+    except ClientError:
+        return None
 
 
 def login_player(db_conn, username, password, displayname):
     """handle login when we don't have the player_id
     """
+    game = load_game(db_conn)
     table = db_conn.Table('players')
     response = table.scan(
         FilterExpression=Key('username').eq(username)
@@ -151,6 +161,7 @@ def login_player(db_conn, username, password, displayname):
         player_1.username = username
         player_1.displayname = displayname
         item = player_1.get_save_dict()
+        item['jackpot'] = game['jackpot']
         table.put_item(Item=item)
         return player_1
 
@@ -301,6 +312,8 @@ def start_handler(data):
             if str(game_state.player_id) != data['player_id']:
                 game_state.message = "wrong player id"
                 return format_response(game_state, None, 502)
+            if game_state.gameOver:
+                game_state.gameMode = data['mode']
         else:
             game_state = gamestate.GameState()
             # create new player if play_id not set

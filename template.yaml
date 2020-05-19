@@ -6,9 +6,16 @@ Description: >
   SAM for farkle-app
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+# THE ORDER of GET, HEAD, OPTIONS, POST seems to matter here. ??!
 Globals:
   Function:
     Timeout: 10
+  Api:
+    Cors:
+      AllowMethods: "'GET,HEAD,OPTIONS,POST'"
+      AllowHeaders: "'Content-Type, X-Forwarded-For'"
+      AllowOrigin: "'*'"
+
 
 Resources:
   FarkleFunction:
