@@ -145,7 +145,6 @@ def load_player(db_conn, player_id):
 def login_player(db_conn, username, password, displayname):
     """handle login when we don't have the player_id
     """
-    game = load_game(db_conn)
     table = db_conn.Table('players')
     response = table.scan(
         FilterExpression=Key('username').eq(username)
@@ -161,7 +160,6 @@ def login_player(db_conn, username, password, displayname):
         player_1.username = username
         player_1.displayname = displayname
         item = player_1.get_save_dict()
-        item['jackpot'] = game['jackpot']
         table.put_item(Item=item)
         return player_1
 
@@ -335,16 +333,22 @@ def login_handler(data):
     """Get the player data. May require a password (but not yet)
     """
     db_conn = get_dynamo()
+    game = load_game(db_conn)
     player_1: player.Player = None
     if 'player_id' in data and data['player_id'] != '':
         player_1 = load_player(db_conn, data['player_id'])
+        # make sure login key is correct
+        if player_1.login_key != data['login_key']:
+            player_1 = None
     elif 'username' in data and data['username'] != '':
         player_1 = login_player(db_conn, data['username'], data['password'], data['displayname'])
 
     if player_1 is None:
         return format_response({'message': 'invalid login information'}, None, 502)
 
-    return format_response(player_1.get_client_dict())
+    data = player_1.get_client_dict()
+    data['jackpot'] = game['jackpot']
+    return format_response(data)
 
 
 

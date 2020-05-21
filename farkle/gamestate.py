@@ -118,9 +118,9 @@ class GameState:
         if 'num_farkle_boosts' in player_1.farkle:
             self.numBoosts = player_1.farkle['num_farkle_boosts']
         if 'amount_won' in player_1.farkle:
-            self.amountEarned = player_1.farkle['amount_won']
+            self.amountEarned = float(player_1.farkle['amount_won'])
         if 'amount_bet' in player_1.farkle:
-            self.amountBet = player_1.farkle['amount_bet']
+            self.amountBet = float(player_1.farkle['amount_bet'])
         if 'games_played' in player_1.farkle:
             self.numTurns = player_1.farkle['games_played']
         if 'last_bonus' in player_1.farkle:
